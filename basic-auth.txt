@@ -1,0 +1,128 @@
+sources: 
+- https://syntaxfix.com/question/9155/basic-http-authentication-with-node-and-express-4
+- https://github.com/jshttp/basic-auth
+
+En "UtilsManager.ts", crear un nuevo middleware, justo debajo de "validationToken". Tambien lo añadimos en el archivo "app.ts", en el enrutador donde vayamos a hacer la llamada.
+
+Si lo queremos hacer global podemos definirlo dentro de un "app.use", por ejemplo, antes de la definicion de todas las rutas (app.ts, linea 105), pero en este caso, si la autenticacion falla lo notifica, pero si esta bien, hay un next() pero la llamada acaba dando un timeout a pesar de que entra correctamente en el enrutador  -->
+--> Actualizado (funcionando)
+
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  let authentication;
+  const auth = req.headers.authorization;
+
+  if (!auth || !auth.includes("Basic")) {
+    authenticationStatus (res);
+    return;
+  }
+  
+  const realm = 'Basic Authentication', 
+        credentials = {
+          username: "vikaskohli",
+          password: "vikas123"
+        };
+  
+  function authenticationStatus(resp: Response, credentialsProvided?: {username: string, password: string}): Response {
+    if(!credentialsProvided || (credentialsProvided.username === "" && credentialsProvided.password === "")) {
+      return resp.status(401).send('Error !!! Your are not using basic auth or your credentials are missing ');
+    }
+    switch(credentialsProvided.username) {
+      case credentials.username: {
+        if(credentialsProvided.password !== credentials.password) {
+          return resp.status(401).send('Password doesn\'t match'); 
+        }
+
+        if(credentials.password === "") {
+          return resp.status(401).send('Password is empty !!!'); 
+        }
+      }
+
+      default: {
+        let user: boolean = true;
+
+        if(credentialsProvided.username === "") {
+          user = false;
+        }
+        
+        if(credentialsProvided.password === "") {
+          return resp.status(401).send('Password empty !!! Please fill in'); 
+        }
+
+        if(credentialsProvided.password === credentials.password) {
+          return resp.status(401).send('Username wrong !!!');
+        }
+
+        if(credentialsProvided.password !== credentials.password) {
+          if(!user) {
+            return resp.status(401).send('Username empty !!! Please fill in');
+          }
+
+          return resp.status(401).send('Username and password wrong !!!');
+        }
+      }
+    };    
+  };
+
+  authentication = auth.replace(/^Basic/, '').trim();
+
+  authentication = Buffer.from(authentication, "base64").toString('utf8');
+
+  const [username, password] = authentication.split(':');
+
+
+  if (username === credentials.username && password === credentials.password) {
+      next();
+  } else {
+      const cred = {
+        username,
+        password
+      }
+      authenticationStatus (res, cred);
+  }
+});
+
+
+
+
+
+
+como otro middleware, aparte de validationToken -->
+
+export const BasicAuth = async (req: Request, res: Response, next: NextFunction) => {
+    let authentication, realm = 'Basic Authentication', credentials = {
+        userName: "vikaskohli",
+        password: "vikas123"
+    };    
+    
+    function authenticationStatus(resp) {
+        resp.writeHead(401, { 'WWW-Authenticate': 'Basic realm="' + realm + '"' });
+        resp.end('Authorization is needed');    
+    };
+
+
+    if (!req.headers.authorization || req.headers.authorization.indexOf('Basic ') === -1) {
+        authenticationStatus (res);
+        return;
+    }
+
+    authentication = req.headers.authorization.replace(/^Basic/, '').trim();
+
+    // authentication = (new Buffer(authentication, 'base64')).toString('utf8');
+    authentication = Buffer.from(authentication, "base64").toString('utf8');
+
+    const [username, password] = authentication.split(':');
+
+
+    if (username === credentials.userName && password === credentials.password) {
+        // this.utilsManager.sendResponse('Great You are Authenticated...', {}, 200);
+        // res.status(200).send('Great You are Authenticated...');
+        next();
+    } else {
+        authenticationStatus (res);
+    }
+
+    // next();
+};
+
+
+
